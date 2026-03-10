@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pecoc"
+version = "0.1.0"
+description = "KDE-based density visualization with weighted color mapping for 3D rendering"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Tsjerk A. Wassenaar" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+pymol = ["pymol-open-source>=2.5"]
+plot   = ["matplotlib>=3.7"]
+dev    = ["pytest>=7", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pecoc*"]
+
+[project.urls]
+Repository = "https://github.com/Tsjerk/pecoc"
+
