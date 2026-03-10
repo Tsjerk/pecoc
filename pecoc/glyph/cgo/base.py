@@ -76,8 +76,11 @@ except ImportError:
 # CGO – base container for compiled graphical objects
 # ---------------------------------------------------------------------------
 
+class Glyph3D:
+    pass
 
-class CGO:
+
+class CGO(Glyph3D):
     """
     A NumPy-backed container for a PyMOL Compiled Graphical Object (CGO).
 
