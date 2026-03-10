@@ -158,8 +158,12 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     bw = determine_bandwidth(x, method=bw) 
     wbw = bw if wbw is None else estimate_bandwidth(x, method=wbw) 
     
-    # Determine range of KDE, not drawing range 
-    x_min, x_max = x.min() - 3*max(bw, wbw), x.max() + 3*max(bw, wbw)
+    # Determine range of KDE
+    if x_range is not None:
+        x_min, x_max = x_range
+    else:
+        x_min, x_max = x.min(), x.max()
+    x_min, x_max = x_min - 3*max(bw, wbw), x_max() + 3*max(bw, wbw)
 
     # Check binsize
     if bins is None:
@@ -205,21 +209,98 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     return bin_centers, density, weighted
 
 
+class Feather:
+    """
+    A single KDE result: bin positions, density, and weighted colors.
+
+    Produced by Pecoc for each input series. Supports indexing to select
+    a subset of bins, e.g. for rendering a subrange.
+
+    Attributes
+    ----------
+    shaft : ndarray, shape (bins,)
+        Bin center positions (the KDE x-axis).
+    barbs : ndarray, shape (bins,)
+        KDE density at each bin, normalized to integrate to 1.
+    colors : ndarray, shape (bins, n_channels)
+        Per-bin weighted average color, interpolated by the KDE-smoothed
+        weight distribution.
+    """
+    def __init__(self, shaft, barbs, colors):
+        self.shaft = shaft
+        self.barbs = barbs
+        self.colors = colors
+
+    def __len__(self):
+        return len(self.shaft)
+
+    def __getitem__(self, item):
+        return Feather(self.shaft[item], self.barbs[item], self.colors[item])
+
+    # Drawing...
+    
+
 class Pecoc:
+    """
+    KDE-based density estimator with weighted color mapping.
+
+    For each series in X, computes a 1D KDE using recursive Gaussian
+    filtering (Young-van Vliet) and a corresponding color distribution
+    derived from per-point weights mapped through a Colorinator.
+
+    Parameters
+    ----------
+    X : array-like, shape (n_series, n_points) or (n_points,)
+        Input data. A 1D array is treated as a single series.
+    y : array-like, shape (n_points,), optional
+        Values mapped to colors via cmap. If None, colors are uniform.
+    cmap : Colorinator or array-like
+        Color map. If not a Colorinator, wrapped in one automatically.
+    pmin, pmax : float, optional
+        Color scale limits. If None, inferred from y.
+    bw : float, str, or None
+        Bandwidth for density KDE. Use 'gscott' or 'gsilverman' for
+        global bandwidth estimation from all series combined and
+        'scott' or 'silverman' for per-series estimation.
+    cbw : float, str, or None
+        Bandwidth for color KDE. Defaults to bw if None.
+    bins : int or None
+        Number of histogram bins. If None, derived from bins_per_bw.
+    x_range : tuple or 'global' or None
+        (xmin, xmax) for binning. 'global' uses the range of all X
+        combined (plus bandwidth margin). None computes per series.
+    bins_per_bw : float
+        Controls bin resolution: bins = bins_per_bw * range / bw.
+        Default 1 is suitable for interpolated renderers (pcolormesh, CGO tube);
+        use 5 for direct point rendering.
+        interpolated renderers (pcolormesh, CGO tube).
+    """
     def __init__(self, X, y=None, cmap=SBW, pmin=None, pmax=None,
-                 bw=None, cbw=None, bins=None, x_range=None, bins_per_bw=5):
+                 bw=None, cbw=None, bins=None, x_range=None, bins_per_bw=1):
+
+        X = np.atleast_2d(X)
+        
+        if x_range == 'global':
+            x_range = (X.min(), X.max())
+
+        if isinstance(bw, str) and bw.startswith('g'):
+            bw = determine_bandwidth(X.ravel(), bw[1:])
+
+        if isinstance(cbw, str) and cbw.startswith('g'):
+            cbw = determine_bandwidth(X.ravel(), cbw[1:])
+            
         if not hasattr(cmap, 'map'):
             cmap = Colorinator(cmap)
         self.cmap = cmap
-        
-        X = [X] if np.asarray(X).ndim == 1 else X
         colors = None if y is None else cmap.map(np.asarray(y), pmin, pmax)
-        
+
         self.feathers = [
-            weighted_kde(xi, colors, bw, cbw, bins, x_range, bins_per_bw)
+            Feather(*weighted_kde(xi, colors, bw, cbw, bins, x_range, bins_per_bw))
             for xi in X
         ]
         
     def __getitem__(self, item):
         return self.feathers[item]
+
+
 
