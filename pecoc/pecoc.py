@@ -2,73 +2,26 @@ import numpy as np
 from scipy.signal import lfilter
 
 from .colorinator import *
+from .glyph import *
 
 
-def determine_bandwidth(values, hint=None, rule='scott'):
-    """
-    Determine bandwidth(s) for kernel density estimation.
-    
-    Parameters
-    ----------
-    values : array_like
-        Input data. If 1-D, treated as single series. If 2-D, each row
-        is a separate series.
-    hint : None, float, 'global', 'local', or array_like, optional
-        Bandwidth specification:
-          - None: compute per-series bandwidth (equivalent to 'local')
-          - float or int: use this value for all series
-          - 'global': compute single bandwidth from all data combined
-          - 'local': compute separate bandwidth for each series
-          - array_like of length n: explicit bandwidth per series
-    rule : {'scott', 'silverman'}, default='scott'
-        Rule for automatic bandwidth calculation.
-    
-    Returns
-    -------
-    tuple of float
-        Bandwidth values, one per series (or repeated if global/fixed).
-    
-    Raises
-    ------
-    ValueError
-        If hint is an array with incorrect length or an unrecognized value.
-    """
+def determine_bandwidth(values, hint='scott'):
     values = np.asarray(values)
-    
-    ## Handle multiple series
-    
-    if values.ndim > 1:
-        n = len(values)
-        if hint is None or hint == 'global':
-            # Global bandwidth: compute from all data
-            return n*(determine_kde_bw(values.flatten(), None, rule), )
-        elif hint == 'local':
-            # Local bandwidth: compute per series (None or 'local')
-            return tuple(determine_kde_bw(series, None, rule) for series in values)
-        elif isinstance(hint, (float, int)):
-            # Fixed bandwidth for all series
-            return n*(hint, )
-        elif isinstance(hint, (np.ndarray, list, tuple)) and len(hint) == n:
-            # Explicit bandwidth per series
-            return tuple(hint)
-        raise ValueError(
-            f"Invalid hint: {hint}. Must be a number, 'global', 'local', None, "
-            f"or an array of length {n}."
-        )
-            
-    ## Handle single series
 
     if isinstance(hint, (int, float)):
         return hint
-    
-    if 'cott'.startswith(rule[1:]):
+
+    if not isinstance(hint, str):
+        raise TypeError(f"Bandwidth hint should be numeric or string (scott|silverman)")
+        
+    if 'cott'.startswith(hint[1:]):
         return values.std() * values.size**(-1/5)
-    elif 'ilverman'.startswith(rule[1:]):
+    elif 'ilverman'.startswith(hint[1:]):
         std = values.std()
         iqr = (np.percentile(values, 75) - np.percentile(values, 25)) / 1.349
         return (values.size * 3/4)**(-1/5) * min(std, iqr)
 
-    raise ValueError(f"Unknown rule: {rule}. Use 'sc[ott]' or 'si[lverman]'.")
+    raise ValueError(f"Unknown rule: {hint}. Use 'sc[ott]' or 'si[lverman]'.")
 
 
 def young_vliet_coeffs(sigma):
@@ -155,20 +108,22 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
         raise ValueError("Weights must have same length as x")
     
     # Estimate bandwidth if needed
-    bw = determine_bandwidth(x, method=bw) 
-    wbw = bw if wbw is None else estimate_bandwidth(x, method=wbw) 
+    bw = determine_bandwidth(x, hint=bw) 
+    wbw = bw if wbw is None else estimate_bandwidth(x, hint=wbw) 
+    print('Bandwidths:', bw, wbw)
     
     # Determine range of KDE
     if x_range is not None:
         x_min, x_max = x_range
     else:
         x_min, x_max = x.min(), x.max()
-    x_min, x_max = x_min - 3*max(bw, wbw), x_max() + 3*max(bw, wbw)
+    x_min, x_max = x_min - 3*max(bw, wbw), x_max + 3*max(bw, wbw)
 
     # Check binsize
     if bins is None:
         bins = int(bins_per_bw * (x_max - x_min) / min(bw, wbw))
     binsize = (x_max - x_min) / bins
+    print(bins)
     
     # Create bins
     bin_edges = np.linspace(x_min, x_max, bins + 1)
@@ -190,9 +145,9 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     smoothed_counts = recursive_gaussian_1d(bin_counts, sigma)
     
     # Apply same filter to each color channel
-    smoothed_colors = np.zeros_like(bin_weight_sums)
-    for w in range(len(weights)):
-        smoothed_weights[:, w] = recursive_gaussian_1d(bin_weight_sums[:, w], wsigma)
+    smoothed_weights = np.zeros_like(bin_weight_sums)
+    for idx, w in enumerate(bin_weight_sums):
+        smoothed_weights[idx] = recursive_gaussian_1d(w, wsigma)
     
     # Normalize density to integrate to 1
     density = smoothed_counts / (smoothed_counts.sum() * binsize)
@@ -201,13 +156,19 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     # Avoid division by zero
     weighted = np.zeros_like(smoothed_weights)
     mask = smoothed_counts > 1e-10
-    weighted[mask] = smoothed_weights[mask] / smoothed_counts[mask, np.newaxis]
+    weighted[:, mask] = smoothed_weights[:, mask] / smoothed_counts[mask]
     
     # For bins with no data, could interpolate or leave as zero
     # Here we leave as zero (black for RGB)
     
     return bin_centers, density, weighted
 
+
+glyphs = {
+    'cello': Cello,
+    'ridge': Ridge,
+    'tube': Tube,
+}
 
 class Feather:
     """
@@ -234,11 +195,25 @@ class Feather:
     def __len__(self):
         return len(self.shaft)
 
+    def __iter__(self):
+        return iter((self.shaft, self.barbs, self.colors))
+
     def __getitem__(self, item):
         return Feather(self.shaft[item], self.barbs[item], self.colors[item])
 
-    # Drawing...
-    
+    def __getattr__(self, attr):
+        if attr in glyphs:
+            return self._plot(glyphs[attr])
+        raise AttributeError(attr)
+
+    def _plot(self, glyph):
+        def do_plot(draw=True, ax=None, **plotopts):
+            g = glyph(*self)
+            if draw:
+                g._artists = glyphloader(g, ax=ax, **plotopts)
+            return g
+        return do_plot
+
 
 class Pecoc:
     """
@@ -276,7 +251,7 @@ class Pecoc:
         interpolated renderers (pcolormesh, CGO tube).
     """
     def __init__(self, X, y=None, cmap=SBW, pmin=None, pmax=None,
-                 bw=None, cbw=None, bins=None, x_range=None, bins_per_bw=1):
+                 bw='scott', cbw=None, bins=None, x_range=None, bins_per_bw=5):
 
         X = np.atleast_2d(X)
         
@@ -295,7 +270,7 @@ class Pecoc:
         colors = None if y is None else cmap.map(np.asarray(y), pmin, pmax)
 
         self.feathers = [
-            Feather(*weighted_kde(xi, colors, bw, cbw, bins, x_range, bins_per_bw))
+            Feather(*weighted_kde(xi, colors.T, bw, cbw, bins, x_range, bins_per_bw))
             for xi in X
         ]
         
