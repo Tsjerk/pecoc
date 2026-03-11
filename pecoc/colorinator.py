@@ -193,11 +193,23 @@ Peacock = Colorinator([
     (0.95, 0.90, 0.60),  # pale gold edge
 ], points=PEACOCK_PTS)
 
-# Signature diverging: sky blue – white – burnt orange
 SBW = Colorinator([
     (0.15, 0.55, 0.90),  # sky blue
     (1.00, 1.00, 1.00),  # white
     (0.85, 0.40, 0.05),  # burnt orange
+])
+
+# Signature diverging: sapphire – white – burnt orange
+BWO = Colorinator([
+    (0.059, 0.322, 0.729),  # sapphire
+    (1.000, 1.000, 1.000),  # white
+    (0.850, 0.400, 0.050),  # burnt orange
+])
+
+PeacockMagenta = Colorinator([
+    (0.000, 0.510, 0.500),  # peacock blue
+    (1.000, 1.000, 1.000),  # white
+    (0.750, 0.100, 0.550),  # deep magenta
 ])
 
 BOX = Colorinator(colors=FIVECOL, points=BOXPLOT)
