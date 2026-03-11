@@ -173,8 +173,9 @@ VanGogh = Colorinator([
     (0.05, 0.05, 0.20),  # deep midnight blue
     (0.10, 0.20, 0.55),  # cobalt blue
     (0.15, 0.45, 0.70),  # cerulean
-    (0.60, 0.55, 0.20),  # ochre
+    (0.975, 0.95, 0.60),  # 
     (0.95, 0.85, 0.20),  # starlight yellow
+    (0.60, 0.55, 0.20),  # ochre
 ])
 
 # Peacock tail feather: dark root through iridescent eye to golden tip
