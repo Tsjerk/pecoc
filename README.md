@@ -6,7 +6,7 @@ The primary display is the **cello plot**: a violin-style density visualization 
 
 The method is described in full in:
 
-> Wassenaar, T.A. (2024). *A New Look at Correlations: Pattern-Encoded Color-Ordered Correlation (PECOC) and Cello Plots for Multivariate Data Visualization.*
+> Wassenaar, T.A. (...). *A New Look at Correlations: Pattern-Encoded Color-Ordered Correlation (PECOC) and Cello Plots for Multivariate Data Visualization.*
 
 ---
 
