@@ -37,7 +37,9 @@ import numpy as np
 
 
 class Glyph2D:
-    pass
+    def draw(self, ax=None, **plotopts):
+        from .loader import pltloader
+        return pltloader(self, **plotopts)
 
 
 class Ribbon(Glyph2D):

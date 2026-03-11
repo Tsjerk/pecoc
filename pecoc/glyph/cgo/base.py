@@ -77,7 +77,9 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 class Glyph3D:
-    pass
+    def draw(self, ax=None, **plotopts):
+        from .loader import pltloader
+        return cgoloader(self, **plotopts)
 
 
 class CGO(Glyph3D):
