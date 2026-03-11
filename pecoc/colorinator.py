@@ -57,7 +57,7 @@ class Colorinator:
         self.colors = np.asarray(colors)
         self.points = points
 
-    def __call__(self, points, pmin=0, pmax=1):
+    def __call__(self, points, pmin=None, pmax=None):
         return self.map(points, pmin, pmax)
         
     def __len__(self):
@@ -65,6 +65,9 @@ class Colorinator:
 
     def __getitem__(self, item):
         return self.colors[item]
+
+    def __str__(self):
+        return '\n'.join(f'{q:6.4f}: {c}' for q, c in zip(self.points, self.colors)) 
     
     def map(self, points, pmin=None, pmax=None):
         """Map data values to colors.
@@ -82,7 +85,7 @@ class Colorinator:
         ndarray of shape (n_points, n_channels)
             Color values for each input point.
         """
-        points = np.array(points)
+        points = np.asarray(points).astype(float)
         if pmin is None:
             pmin = points.min()
         if pmax is None:
