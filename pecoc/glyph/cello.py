@@ -85,6 +85,7 @@ class Ribbon(Glyph2D):
             c0 = np.zeros((n, 3))
         if c1 is None:
             c1 = c0
+
         self.c = np.asarray((c0, c1))
 
     # ---------- derived geometry ----------
@@ -166,13 +167,11 @@ class Cello(Ribbon):
 
     Parameters
     ----------
-    x : array-like, shape (n,) or array-like, shape (2, n, 2)
-        x-coordinates of the spine (1D), or a pre-built vertex array (2D)
-        as produced by transform operators.
-    y : array-like, shape (n,), optional
-        Half-widths.  The ribbon spans from ``-y`` to ``+y``.  If None,
-        ``x`` is interpreted as a full vertex array.
-    c : array-like, shape (n, 3) or (n, 4), optional
+    x : array-like, shape (n,) 
+        x-coordinates of the spine (1D).
+    y : array-like, shape (n,)
+        Half-widths.  The ribbon spans from ``-y`` to ``+y``.
+    c : array-like, shape (n, 3) or (n, 4)
         Colors applied identically to both edges.
 
     Attributes
@@ -181,11 +180,9 @@ class Cello(Ribbon):
         Central spine of the ribbon, i.e. the mean of both edges.
     """
 
-    def __init__(self, x, y=None, c=None):
-        if y is None:
-            super().__init__(x, c0=c, c1=c)
-        else:
-            super().__init__(x, y, -np.asarray(y), c, c)
+    def __init__(self, x, y, c):
+            v = np.array(((y, x), (-y, x))).transpose((0, 2, 1))
+            super().__init__(v, c0=c, c1=c)
 
     @property
     def base(self):
