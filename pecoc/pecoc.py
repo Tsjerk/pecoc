@@ -109,8 +109,7 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     
     # Estimate bandwidth if needed
     bw = determine_bandwidth(x, hint=bw) 
-    wbw = bw if wbw is None else estimate_bandwidth(x, hint=wbw) 
-    print('Bandwidths:', bw, wbw)
+    wbw = bw if wbw is None else determine_bandwidth(x, hint=wbw) 
     
     # Determine range of KDE
     if x_range is not None:
@@ -123,7 +122,6 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     if bins is None:
         bins = int(bins_per_bw * (x_max - x_min) / min(bw, wbw))
     binsize = (x_max - x_min) / bins
-    print(bins)
     
     # Create bins
     bin_edges = np.linspace(x_min, x_max, bins + 1)
@@ -143,7 +141,9 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     
     # Apply recursive Gaussian filter to counts
     smoothed_counts = recursive_gaussian_1d(bin_counts, sigma)
-    
+    # Do the same with the weight sigma to average weights
+    smoothed_counts_w = recursive_gaussian_1d(bin_counts, wsigma)
+
     # Apply same filter to each color channel
     smoothed_weights = np.zeros_like(bin_weight_sums)
     for idx, w in enumerate(bin_weight_sums):
@@ -155,8 +155,8 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     # Compute weighted average colors
     # Avoid division by zero
     weighted = np.zeros_like(smoothed_weights)
-    mask = smoothed_counts > 1e-10
-    weighted[:, mask] = smoothed_weights[:, mask] / smoothed_counts[mask]
+    mask = smoothed_counts_w > 1e-10
+    weighted[:, mask] = smoothed_weights[:, mask] / smoothed_counts_w[mask]
     
     # For bins with no data, could interpolate or leave as zero
     # Here we leave as zero (black for RGB)
@@ -228,7 +228,7 @@ class Pecoc:
     X : array-like, shape (n_series, n_points) or (n_points,)
         Input data. A 1D array is treated as a single series.
     y : array-like, shape (n_points,), optional
-        Values mapped to colors via cmap. If None, colors are uniform.
+        Values mapped to colors via cmap. If None, colors are based on X[0].
     cmap : Colorinator or array-like
         Color map. If not a Colorinator, wrapped in one automatically.
     pmin, pmax : float, optional
@@ -254,6 +254,8 @@ class Pecoc:
                  bw='scott', cbw=None, bins=None, x_range=None, bins_per_bw=5):
 
         X = np.atleast_2d(X)
+        if y is None:
+            y = X[0]
         
         if x_range == 'global':
             x_range = (X.min(), X.max())
@@ -267,12 +269,10 @@ class Pecoc:
         if not hasattr(cmap, 'map'):
             cmap = Colorinator(cmap)
         self.cmap = cmap
-        colors = None if y is None else cmap.map(np.asarray(y), pmin, pmax)
+        colors = cmap.map(np.asarray(y), pmin, pmax)
 
-        self.feathers = [
-            Feather(*weighted_kde(xi, colors.T, bw, cbw, bins, x_range, bins_per_bw))
-            for xi in X
-        ]
+        feathers = [ weighted_kde(xi, colors.T, bw, cbw, bins, x_range, bins_per_bw) for xi in X ]
+        self.feathers = [ Feather(s, b, c.T) for s, b, c in feathers ]
         
     def __getitem__(self, item):
         return self.feathers[item]
