@@ -72,7 +72,7 @@ def recursive_gaussian_1d(signal, sigma):
     return B * lfilter([b0], a, lfilter([b0], a, signal)[::-1])[::-1]
 
 
-def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins_per_bw=5):
+def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins_per_bw=5, eps=None):
     """
     Compute 1D KDE with weights using recursive Gaussian filtering.
     
@@ -89,6 +89,17 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
         Number of bins for discretization
     x_range : tuple or None
         (xmin, xmax) for binning. If None, use data range with 5% padding.
+    eps : float or None, optional
+        Minimum threshold for the color-smoothed density denominator below
+        which bins are treated as empty and assigned zero color. If None
+        (default), the threshold is set automatically to
+        ``smoothed_counts_w.max() * np.finfo(float).eps * 10``, which
+        keeps the division within float64 precision relative to the peak
+        density, regardless of the number of bins or the bandwidth ratio
+        bw/cbw. Explicit values are occasionally useful when the automatic
+        threshold produces visible artifacts at very low densities, but
+        should be set relative to the expected peak density rather than
+        as an absolute value.
     
     Returns
     -------
@@ -154,8 +165,10 @@ def weighted_kde(x, weights, bw='scott', wbw=None, bins=None, x_range=None, bins
     
     # Compute weighted average colors
     # Avoid division by zero
+    if eps is None:
+        eps = smoothed_counts_w.max() * np.finfo(float).eps * 10
+    mask = smoothed_counts_w > eps
     weighted = np.zeros_like(smoothed_weights)
-    mask = smoothed_counts_w > 1e-10
     weighted[:, mask] = smoothed_weights[:, mask] / smoothed_counts_w[mask]
     
     # For bins with no data, could interpolate or leave as zero
